@@ -36,12 +36,16 @@ const createServer = () => {
       }
     }
 
-    const result = moveSnake(player, direction, 10, 10);
+    const result = moveSnake(player, direction, game.fieldSize, game.fieldSize);
     if (!result.ok) {
       return res.status(400).json({ error: result.error });
     }
 
-    res.json({ id: game.id, field: renderField(game), score: player.score });
+    res.json({
+      id: game.id,
+      field: renderField(game, game.fieldSize, game.fieldSize),
+      score: player.score,
+    });
   });
 
   return app;

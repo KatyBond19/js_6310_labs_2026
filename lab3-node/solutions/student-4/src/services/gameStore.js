@@ -19,12 +19,13 @@ const createSnake = (playerIndex) => {
   return [{ x: 8, y: 8 }, { x: 7, y: 8 }];
 };
 
-export const createGame = () => {
+export const createGame = (fieldSize = 10) => {
   const id = nextGameId++;
   const code = generateCode();
   const game = {
     id,
     code,
+    fieldSize,
     players: [],
     status: 'waiting',
     createdAt: new Date(),
@@ -59,7 +60,11 @@ export const addPlayer = (game, playerId) => {
 
 export const getSession = (chatId) => {
   if (!sessions.has(chatId)) {
-    sessions.set(chatId, { state: 'IDLE', gameId: null });
+    sessions.set(chatId, {
+      state: 'IDLE',
+      gameId: null,
+      pendingFieldSize: null,
+    });
   }
   return sessions.get(chatId);
 };

@@ -13,6 +13,7 @@ const helpText =
   '/join <код> — подключиться к партии\n' +
   '/move <направление> — ход (up/down/left/right)\n' +
   '/field — показать поле\n' +
+  '/cancel — отменить действие\n' +
   '/help — список команд';
 
 const handleMessage = async (text, chatId, reply) => {
@@ -25,19 +26,44 @@ const handleMessage = async (text, chatId, reply) => {
 
   if (command === '/start' || command === '/help') {
     session.state = 'IDLE';
+    session.pendingFieldSize = null;
     await reply(`Привет! Я SnakeBot.\n\n${helpText}`);
     return;
   }
 
-  if (command === '/create_game') {
-    const game = createGame();
+  if (command === '/cancel') {
+    session.state = 'IDLE';
+    session.pendingFieldSize = null;
+    await reply('Действие отменено.');
+    return;
+  }
+
+  // ===== FSM: ждём размер поля =====
+  if (session.state === 'AWAITING_FIELD_SIZE') {
+    const size = Number(input);
+
+    if (!Number.isInteger(size) || size < 5 || size > 50) {
+      await reply('Размер поля — целое число от 5 до 50. Попробуйте ещё раз или /cancel.');
+      return;
+    }
+
+    const game = createGame(size);
     addPlayer(game, chatId);
     session.state = 'IDLE';
     session.gameId = game.id;
+    session.pendingFieldSize = null;
+
     await reply(
-      `Партия создана.\nID: ${game.id}\nКод приглашения: ${game.code}\n` +
-        `Отправьте другу: /join ${game.code}`,
+      `Партия создана.\nID: ${game.id}\nРазмер: ${size}x${size}\n` +
+        `Код приглашения: ${game.code}\nОтправьте другу: /join ${game.code}`,
     );
+    return;
+  }
+
+  if (command === '/create_game') {
+    session.state = 'AWAITING_FIELD_SIZE';
+    session.pendingFieldSize = null;
+    await reply('Введите размер поля (целое число от 5 до 50), например: 10');
     return;
   }
 
@@ -86,12 +112,14 @@ const handleMessage = async (text, chatId, reply) => {
       await reply('Вы не участник этой партии.');
       return;
     }
-    const result = moveSnake(player, direction, 10, 10);
+    const result = moveSnake(player, direction, game.fieldSize, game.fieldSize);
     if (!result.ok) {
       await reply(`Ход невозможен: ${result.error}`);
       return;
     }
-    await reply(`Ход выполнен. Ваш счёт: ${player.score}\n\n${renderField(game)}`);
+    await reply(
+      `Ход выполнен. Ваш счёт: ${player.score}\n\n${renderField(game, game.fieldSize, game.fieldSize)}`,
+    );
     return;
   }
 
@@ -105,7 +133,7 @@ const handleMessage = async (text, chatId, reply) => {
       await reply('Партия не найдена.');
       return;
     }
-    await reply(renderField(game));
+    await reply(renderField(game, game.fieldSize, game.fieldSize));
     return;
   }
 

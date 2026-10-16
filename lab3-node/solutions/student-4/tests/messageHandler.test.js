@@ -14,10 +14,38 @@ describe('messageHandler', () => {
     expect(reply).toHaveBeenCalledWith(expect.stringContaining('SnakeBot'));
   });
 
-  test('creates a game on /create_game', async () => {
+  test('creates a game through FSM: prompts for size, then creates', async () => {
     const reply = jest.fn();
     await handleMessage('/create_game', 1, reply);
-    expect(reply).toHaveBeenCalledWith(expect.stringContaining('Партия создана'));
+    expect(reply).toHaveBeenLastCalledWith(expect.stringContaining('Введите размер поля'));
+
+    await handleMessage('10', 1, reply);
+    expect(reply).toHaveBeenLastCalledWith(expect.stringContaining('Партия создана'));
+  });
+
+  test('rejects invalid field size', async () => {
+    const reply = jest.fn();
+    await handleMessage('/create_game', 1, reply);
+    await handleMessage('abc', 1, reply);
+    expect(reply).toHaveBeenLastCalledWith(
+      expect.stringContaining('целое число от 5 до 50'),
+    );
+  });
+
+  test('rejects field size out of range', async () => {
+    const reply = jest.fn();
+    await handleMessage('/create_game', 1, reply);
+    await handleMessage('100', 1, reply);
+    expect(reply).toHaveBeenLastCalledWith(
+      expect.stringContaining('целое число от 5 до 50'),
+    );
+  });
+
+  test('cancels FSM state on /cancel', async () => {
+    const reply = jest.fn();
+    await handleMessage('/create_game', 1, reply);
+    await handleMessage('/cancel', 1, reply);
+    expect(reply).toHaveBeenLastCalledWith(expect.stringContaining('отменено'));
   });
 
   test('rejects /join without a code', async () => {
@@ -41,8 +69,11 @@ describe('messageHandler', () => {
   test('rejects unknown direction', async () => {
     const reply = jest.fn();
     await handleMessage('/create_game', 1, reply);
+    await handleMessage('10', 1, reply);
     await handleMessage('/move диагональ', 1, reply);
-    expect(reply).toHaveBeenLastCalledWith(expect.stringContaining('up, down, left, right'));
+    expect(reply).toHaveBeenLastCalledWith(
+      expect.stringContaining('up, down, left, right'),
+    );
   });
 
   test('ignores empty input', async () => {
@@ -55,6 +86,7 @@ describe('messageHandler', () => {
     const r1 = jest.fn();
     const r2 = jest.fn();
     await handleMessage('/create_game', 1, r1);
+    await handleMessage('10', 1, r1);
     await handleMessage('/move up', 2, r2);
     expect(r2).toHaveBeenLastCalledWith(expect.stringContaining('не в партии'));
   });
@@ -75,20 +107,25 @@ describe('messageHandler', () => {
     const reply = jest.fn();
     await handleMessage('/create_game', 1, reply);
     const lastCall = reply.mock.calls.at(-1)[0];
-    const match = lastCall.match(/Код приглашения: (\w+)/);
-    const code = match[1];
+    // получаем код через ответ на размер поля
+    await handleMessage('10', 1, reply);
+    const createReply = reply.mock.calls.at(-1)[0];
+    const code = createReply.match(/Код приглашения: (\w+)/)[1];
 
     await handleMessage(`/join ${code}`, 2, reply);
     expect(reply).toHaveBeenLastCalledWith(expect.stringContaining('подключены'));
 
     await handleMessage('/move right', 2, reply);
     expect(reply).toHaveBeenLastCalledWith(expect.stringContaining('Ход выполнен'));
+    expect(lastCall).toBeDefined();
   });
 
   test('does not let the same player join twice', async () => {
     const reply = jest.fn();
     await handleMessage('/create_game', 1, reply);
-    const code = reply.mock.calls.at(-1)[0].match(/Код приглашения: (\w+)/)[1];
+    await handleMessage('10', 1, reply);
+    const createReply = reply.mock.calls.at(-1)[0];
+    const code = createReply.match(/Код приглашения: (\w+)/)[1];
 
     await handleMessage(`/join ${code}`, 1, reply);
     expect(reply).toHaveBeenLastCalledWith(expect.stringContaining('Не удалось'));

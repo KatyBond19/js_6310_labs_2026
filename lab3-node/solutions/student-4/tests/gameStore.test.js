@@ -17,6 +17,16 @@ describe('gameStore', () => {
     expect(game.players).toEqual([]);
   });
 
+  test('creates a game with default field size', () => {
+    const game = createGame();
+    expect(game.fieldSize).toBe(10);
+  });
+
+  test('creates a game with custom field size', () => {
+    const game = createGame(20);
+    expect(game.fieldSize).toBe(20);
+  });
+
   test('finds game by code case-insensitively', () => {
     const game = createGame();
     expect(findGameByCode(game.code.toLowerCase())).toBe(game);
